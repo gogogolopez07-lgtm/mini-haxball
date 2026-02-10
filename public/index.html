@@ -2,22 +2,82 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<title>Mini HaxBall <!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
 <title>Mini HaxBall Online</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
-body{margin:0;background:#222;color:white;font-family:sans-serif;text-align:center;}
-canvas{background:#3b8b3b;border:3px solid white;margin-top:10px;}
-#menu{margin-top:40px;}
-#joystick{position:fixed;bottom:20px;left:20px;width:120px;height:120px;background:rgba(255,255,255,0.1);border-radius:50%;}
-#stick{width:60px;height:60px;background:rgba(255,255,255,0.3);border-radius:50%;position:absolute;top:30px;left:30px;}
-#kickBtn{position:fixed;bottom:40px;right:40px;padding:15px;}
+body { margin:0; background:#222; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; }
+
+canvas {
+width:100%;
+max-width:900px;
+background:#3b8b3b;
+border:3px solid #fff;
+}
+
+#score {
+position:fixed;
+top:10px;
+font-size:28px;
+color:white;
+background:rgba(0,0,0,0.4);
+padding:8px 20px;
+border-radius:12px;
+z-index:10;
+}
+
+#menu { margin-top:70px; display:flex; flex-direction:column; gap:10px; }
+
+#joystickContainer {
+position:fixed;
+bottom:20px;
+left:20px;
+width:120px;
+height:120px;
+background:rgba(255,255,255,0.1);
+border-radius:50%;
+touch-action:none;
+}
+
+#joystickThumb {
+position:absolute;
+width:60px;
+height:60px;
+background:rgba(255,255,255,0.3);
+border-radius:50%;
+top:30px;
+left:30px;
+}
+
+#buttonsContainer {
+position:fixed;
+bottom:20px;
+right:20px;
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+button {
+width:120px;
+height:60px;
+font-size:18px;
+border-radius:12px;
+border:none;
+color:white;
+}
+
+#kickBtn { background:#ff8800; }
 </style>
 </head>
 
 <body>
 
-<h2 id="score">0 : 0</h2>
+<div id="score">0 : 0</div>
 
 <div id="menu">
 <button onclick="createRoom()">Crear Sala</button>
@@ -26,11 +86,13 @@ canvas{background:#3b8b3b;border:3px solid white;margin-top:10px;}
 
 <canvas id="game" width="800" height="400" style="display:none"></canvas>
 
-<div id="joystick" style="display:none">
-<div id="stick"></div>
+<div id="joystickContainer" style="display:none">
+<div id="joystickThumb"></div>
 </div>
 
-<button id="kickBtn" style="display:none">Patear</button>
+<div id="buttonsContainer" style="display:none">
+<button id="kickBtn">Patear</button>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 
@@ -48,7 +110,7 @@ let ball={x:400,y:200,vx:0,vy:0};
 let players=[{x:100,y:200},{x:700,y:200}];
 let score=[0,0];
 
-let joy={x:0,y:0};
+let joystick={x:0,y:0};
 let kick=false;
 
 /* --- SALAS --- */
@@ -57,7 +119,7 @@ function createRoom(){
 socket.emit("createRoom");
 }
 
-socket.on("roomCreated", code=>{
+socket.on("roomCreated",code=>{
 roomCode=code;
 isHost=true;
 alert("Código: "+code);
@@ -81,11 +143,15 @@ score=state.score;
 
 /* --- JOYSTICK --- */
 
-const joystick=document.getElementById("joystick");
-const stick=document.getElementById("stick");
+const joystickContainer=document.getElementById("joystickContainer");
+const joystickThumb=document.getElementById("joystickThumb");
 
-joystick.addEventListener("touchmove",e=>{
-const rect=joystick.getBoundingClientRect();
+let active=false;
+
+function moveStick(e){
+if(!active) return;
+
+const rect=joystickContainer.getBoundingClientRect();
 const t=e.touches[0];
 
 let dx=t.clientX-rect.left-60;
@@ -99,18 +165,29 @@ dx=dx/dist*max;
 dy=dy/dist*max;
 }
 
-stick.style.left=(dx+30)+"px";
-stick.style.top=(dy+30)+"px";
+joystickThumb.style.left=(dx+30)+"px";
+joystickThumb.style.top=(dy+30)+"px";
 
-joy.x=dx/max;
-joy.y=dy/max;
+joystick.x=dx/max;
+joystick.y=dy/max;
+}
+
+joystickContainer.addEventListener("touchstart",e=>{
+active=true;
+moveStick(e);
 });
 
-joystick.addEventListener("touchend",()=>{
-joy.x=0; joy.y=0;
-stick.style.left="30px";
-stick.style.top="30px";
+joystickContainer.addEventListener("touchmove",moveStick);
+
+joystickContainer.addEventListener("touchend",()=>{
+active=false;
+joystick.x=0;
+joystick.y=0;
+joystickThumb.style.left="30px";
+joystickThumb.style.top="30px";
 });
+
+/* --- BOTON --- */
 
 document.getElementById("kickBtn").ontouchstart=()=>kick=true;
 document.getElementById("kickBtn").ontouchend=()=>kick=false;
@@ -125,8 +202,8 @@ function update(){
 
 let p=isHost?players[0]:players[1];
 
-p.x+=joy.x*4;
-p.y+=joy.y*4;
+p.x+=joystick.x*4;
+p.y+=joystick.y*4;
 
 p.x=Math.max(20,Math.min(780,p.x));
 p.y=Math.max(20,Math.min(380,p.y));
@@ -159,7 +236,6 @@ if(ball.x<10){ score[1]++; resetBall(); }
 if(ball.x>790){ score[0]++; resetBall(); }
 
 socket.emit("gameState",{code:roomCode,state:{players,ball,score}});
-
 }
 
 }
@@ -168,8 +244,8 @@ function draw(){
 ctx.clearRect(0,0,800,400);
 
 ctx.fillStyle="white";
-ctx.fillRect(0,150,10,100);
-ctx.fillRect(790,150,10,100);
+ctx.fillRect(0,125,10,150);
+ctx.fillRect(790,125,10,150);
 
 players.forEach(p=>{
 ctx.beginPath();
@@ -195,8 +271,8 @@ requestAnimationFrame(gameLoop);
 function startGame(){
 document.getElementById("menu").style.display="none";
 canvas.style.display="block";
-joystick.style.display="block";
-document.getElementById("kickBtn").style.display="block";
+joystickContainer.style.display="block";
+document.getElementById("buttonsContainer").style.display="flex";
 gameLoop();
 }
 
